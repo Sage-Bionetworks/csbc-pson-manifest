@@ -151,7 +151,7 @@ publication_row <- function(syn_id, manifest, grants, datasets) {
     grantName = create_listed_annots(split_and_search(manifest[["grantNumber"]], grants, "grantNumber", "grantName")), #nolint
     grantNumber = create_listed_annots(manifest[["grantNumber"]]),
     grantInstitution = create_listed_annots(split_and_search(
-      manifest[["grantNumber"]], grants, 
+      manifest[["grantNumber"]], grants,
       "grantNumber", "grantInstitution"
     )),
     datasetId = ifelse(
@@ -184,7 +184,7 @@ dataset_row <- function(syn_id, manifest, publications) {
         create_listed_annots(manifest[["grantNumber"]])
     ),
     #publicationId = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "publicationId")), #nolint
-    publicationId = NA,
+    publicationId = "",
     publicationTitle = create_listed_annots(manifest[["publicationTitle"]]),
     publication = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "pubMedLink", remove_chars = FALSE)), #nolint
     externalLink = ifelse(
@@ -203,7 +203,7 @@ dataset_row <- function(syn_id, manifest, publications) {
         manifest[["datasetUrl"]]
       ),
       manifest[["externalLink"]]
-    )    
+    )
   )
 }
 tool_row <- function(syn_id, manifest, publications) {
@@ -224,7 +224,7 @@ tool_row <- function(syn_id, manifest, publications) {
     grantName = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "grantName")), #nolint
     grantNumber = create_listed_annots(manifest[["grantNumber"]]),
     #publicationId = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "publicationId")), #nolint
-    publicationId = NA,
+    publicationId = "",
     publicationTitle = create_listed_annots(manifest[["publicationTitle"]]),
     publication = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "pubMedLink", remove_chars = FALSE)), #nolint
   )
