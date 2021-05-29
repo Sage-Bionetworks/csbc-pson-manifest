@@ -12,17 +12,17 @@ get_tables <- function() {
     portal_table[["grant"]],
     c("grantId", "grantName", "grantNumber", "grantInstitution",
       "themeId", "theme", "consortiumId", "consortium")
-  )   
+  )
   publications <- get_portal_table(
     portal_table[["publication"]],
     c("publicationId", "publicationTitle", "grantId", "grantNumber",
       "grantName", "themeId", "theme", "consortiumId", "consortium"
     )
-  )   
+  )
   datasets <- get_portal_table(
     portal_table[["dataset"]],
     c("datasetId", "datasetName", "datasetAlias")
-  )   
+  )
   tools <- get_portal_table(
     portal_table[["tool"]],
     c("toolId", "toolName")
@@ -120,7 +120,7 @@ server <- function(input, output, session) {
   session$sendCustomMessage(type = "read_cookie", message = list())
   observeEvent(input$cookie, {
     tryCatch({
-      syn_login(sessionToken = input$cookie, rememberMe = FALSE)
+      syn_login()
 
       ### get portal tables and display overview stats
       tables <<- get_tables()
@@ -128,12 +128,12 @@ server <- function(input, output, session) {
       display_quickview(output, tables)
 
       # get controlled-vocabulary list
-      cv_terms <<- get_synapse_annotations("syn25322361", syn) %>% 
-        select(key, value, columnType) %>% 
+      cv_terms <<- get_synapse_annotations("syn25322361", syn) %>%
+        select(key, value, columnType) %>%
         unique()
       output$terms <- DT::renderDT(
         cv_terms,
-        options = list(pageLength = 50) 
+        options = list(pageLength = 50)
       )
 
       ### update waiter loading screen once login successful
@@ -154,8 +154,8 @@ server <- function(input, output, session) {
           img(src = "synapse_logo.png", height = "120px"),
           h3("Looks like you're not logged in!"),
           span("Please ",
-            a("login", 
-              href = "https://www.synapse.org/#!LoginPlace:0", 
+            a("login",
+              href = "https://www.synapse.org/#!LoginPlace:0",
               target = "_blank"
             ),
             " to Synapse, then refresh this page."
@@ -191,12 +191,12 @@ server <- function(input, output, session) {
       mutate_all(~ tidyr::replace_na(.x, "")) %>%
       plyr::rename(
         replace = c(
-          fileURL = "fileUrl", datasetURL = "datasetUrl", 
-          toolName = "tool", homepageUrl = "externalLink", 
+          fileURL = "fileUrl", datasetURL = "datasetUrl",
+          toolName = "tool", homepageUrl = "externalLink",
           dpgapAccns = "dbgapAccns", dpgapUrls = "dbgapUrls"
         ),
         warn_missing = FALSE
-      ) 
+      )
 
     ### Rancho provides some cols we don't need, so remove them
     manifest <<- manifest[, !(names(manifest) %in% c("Rancho comments", "tumorType_"))]
@@ -208,7 +208,7 @@ server <- function(input, output, session) {
     } else {
       output$preview <- DT::renderDT(manifest)
     }
-    
+
     updateTabsetPanel(session, "validator_tabs", selected = "preview_tab")
   })
 
@@ -218,12 +218,12 @@ server <- function(input, output, session) {
       if (nrow(new_terms) > 0) {
         new_terms <- new_terms[, names(new_terms) %in% c("Category", "standard_name", "key", "value")] %>% #nolint
           plyr::rename(
-            replace = c(Category = "key", standard_name = "value"), 
+            replace = c(Category = "key", standard_name = "value"),
             warn_missing = FALSE
           ) %>%
           mutate(
             key = stringr::str_replace_all(
-              key, 
+              key,
               c("outDataType" = "outputDataType", "Assay" = "assay", "Tumor Type" = "tumorType")) #nolint
           ) %>%
           add_column(columnType = "STRING")
@@ -239,7 +239,7 @@ server <- function(input, output, session) {
           span(
             "File of additional standard terms is not correctly formatted.
             There should be a column named `Category` or `key` and another
-            column named `standard_name` or `value`.", br(), br(), "See", 
+            column named `standard_name` or `value`.", br(), br(), "See",
             strong("Instructions"), "for a template file."),
           easyClose = TRUE
         )
@@ -292,7 +292,7 @@ server <- function(input, output, session) {
     html = div(style = "color:#465362",
       spin_loaders(15, color = "#465362"),
       h4("Uploading...")
-    ),  
+    ),
     color = "white"
   )
   observeEvent(input$upload_btn, {
@@ -317,8 +317,9 @@ server <- function(input, output, session) {
         res <- tables$datasets[grepl(paste0("^", row[["datasetId"]], "$"), tables$datasets[["datasetAlias"]], ignore.case = TRUE), ][["datasetId"]] #nolint
         dataset_folder <- unlist(res[!is.na(res)]) %>%
           stringr::str_replace_all(c("\\[" = "", "\\\"" = "", "\\]" = ""))
-
+        print(dataset_folder)
         annotations <- file_annots(row, dataset_folder, tables$grants, tables$datasets)
+        print(annotations)
         syn_id <- save_file_to_synapse(
           synapseclient,
           name,
@@ -342,13 +343,13 @@ server <- function(input, output, session) {
 #          annotations
 #        )
         syn_id <- ""
-      }      
-      
+      }
+
       if (type != "file") {
         new_portal_row <- switch(type,
           "publication" = publication_row(
-            syn_id, row, 
-            tables$grants, 
+            syn_id, row,
+            tables$grants,
             tables$datasets
           ),
           "dataset" = dataset_row(
@@ -356,10 +357,12 @@ server <- function(input, output, session) {
             tables$publications
           ),
           "tool" = tool_row(
-            syn_id, row, 
+            syn_id, row,
             tables$publications
           )
         )
+        message(glue::glue("Adding row to {type} table:"))
+        print(new_portal_row)
         syn_store(synapseclient$Table(portal_table[[type]], new_portal_row))
       }
 #      output$diag <- DT::renderDT(new_portal_row)
