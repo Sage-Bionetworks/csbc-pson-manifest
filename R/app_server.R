@@ -1,6 +1,6 @@
 #' The application server-side
-#' 
-#' @param input,output,session Internal parameters for {shiny}. 
+#'
+#' @param input,output,session Internal parameters for {shiny}.
 #'     DO NOT REMOVE.
 #' @import shiny
 #' @import shinyjs
@@ -16,11 +16,11 @@ app_server <- function( input, output, session ) {
   # List the first level callModules here
   #Add synapse login
   session$sendCustomMessage(type = "readCookie", message = list())
-  source_python("R/synapse_funcs.py")
-  
+  # source_python("R/synapse_funcs.py")
+
   syn <- .GlobalEnv$synapseclient$Synapse()
   values <- reactiveValues()
-  
+
   observeEvent(input$cookie, {
 
     if (input$cookie == "unauthorized") {
@@ -66,7 +66,7 @@ app_server <- function( input, output, session ) {
             )
           )
         )
-        
+
       })
 
     }
@@ -76,6 +76,6 @@ app_server <- function( input, output, session ) {
     shiny::callModule(mod_home_server, "home_ui_1", values)
     shiny::callModule(mod_quickview_server, "quickview_ui_1", values)
     shiny::callModule(mod_validator_server, "validator_ui_1", values)
-    
+
   })
 }

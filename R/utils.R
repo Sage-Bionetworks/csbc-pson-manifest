@@ -64,6 +64,8 @@ save_file_to_synapse <- function(syn, synapseclient, name,
 
   new_file$id
 }
+
+
 save_folder_to_synapse <- function(syn, synapseclient, name,
                                    parent, annotations) {
   name <- syn_prettify(name)
@@ -76,92 +78,6 @@ save_folder_to_synapse <- function(syn, synapseclient, name,
   new_folder$id
 }
 
-## Set annotations for a given entity, depending on manifest type.
-publication_annots <- function(manifest) {
-  list(
-    doi = manifest[["doi"]],
-    title = manifest[["publicationTitle"]],
-    journal = manifest[["journal"]],
-    publicationYear = manifest[["publicationYear"]],
-    keywords = manifest[["keywords"]],
-    pubMedUrl = manifest[["pubMedUrl"]],
-    pubMedLink = manifest[["pubMedUrl"]],
-    assay = manifest[["assay"]],
-    tissue = manifest[["tissue"]],
-    tumorType = manifest[["tumorType"]]
-  )
-}
-dataset_annots <- function(manifest) {
-  list(
-    fullName = manifest[["datasetName"]],
-    displayName = manifest[["datasetId"]]
-  )
-}
-tool_annots <- function(manifest, grants) {
-  # some tools may be annotated with multiple grants.
-  split_grants <- lapply(
-    stringr::str_split(manifest[["grantNumber"]], ","), trimws
-  )[[1]]
-  list(
-    displayName = manifest[["tool"]],
-    grantId = paste(grants[grants$grantNumber == split_grants, ]$grantId, collapse = ", "), #nolint
-    toolType = manifest[["toolType"]]
-  )
-}
-file_annots <- function(manifest, parent, grants, datasets) {
-  list(
-    fileName = manifest[["fileName"]],
-    name = manifest[["fileName"]],
-    datasets = split_and_search(manifest[["datasetName"]], datasets, "datasetName", "datasetAlias"), #nolint
-    parentId = parent,
-    assay = manifest[["assay"]],
-    platform = manifest[["platform"]],
-    dataFormat = manifest[["dataFormat"]],
-    species = manifest[["species"]],
-    gender = manifest[["sex"]],
-    tumorType = manifest[["tumorType"]],
-    tissue = manifest[["tissue"]],
-    grantName = split_and_search(manifest[["grantNumber"]], grants, "grantNumber", "grantName"), #nolint
-    grantType = split_and_search(manifest[["grantNumber"]], grants, "grantNumber", "grantType"), #nolint
-    consortium = split_and_search(manifest[["grantNumber"]], grants, "grantNumber", "consortium") #nolint
-  )
-}
-
-## Create tibble for entry into * - Merged tables.
-publication_row <- function(syn_id, manifest, grants, datasets) {
-  tibble(
-    publicationId = syn_id,
-    doi = manifest[["doi"]],
-    journal = manifest[["journal"]],
-    pubMedId = manifest[["pubMedId"]],
-    pubMedUrl = manifest[["pubMedUrl"]],
-    pubMedLink = create_url_markdown(paste0("PMID:", manifest[["pubMedId"]]), manifest[["pubMedUrl"]]), #nolint
-    publicationTitle = manifest[["publicationTitle"]],
-    publicationYear = manifest[["publicationYear"]],
-    keywords = manifest[["keywords"]],
-    authors = manifest[["authors"]],
-    assay = create_listed_annots(manifest[["assay"]]),
-    tumorType = create_listed_annots(manifest[["tumorType"]]),
-    tissue = create_listed_annots(manifest[["tissue"]], delim =";"),
-    themeId = split_and_search(manifest[["grantNumber"]], grants, "grantNumber", "themeId"), #nolint
-    theme = create_listed_annots(split_and_search(manifest[["grantNumber"]], grants, "grantNumber", "theme")), #nolint
-    consortiumId = split_and_search(manifest[["grantNumber"]], grants, "grantNumber", "consortiumId"), #nolint
-    consortium = create_listed_annots(manifest[["consortium"]]),
-    grantId = create_listed_annots(manifest[["grantId"]]),
-    grantName = create_listed_annots(split_and_search(manifest[["grantNumber"]], grants, "grantNumber", "grantName")), #nolint
-    grantNumber = create_listed_annots(manifest[["grantNumber"]]),
-    grantInstitution = create_listed_annots(split_and_search(
-      manifest[["grantNumber"]], grants, 
-      "grantNumber", "grantInstitution"
-    )),
-    datasetId = ifelse(
-      manifest[["bioProjectAccns"]] %in% datasets$datasetAlias,
-      split_and_search(manifest[["bioProjectAccns"]], datasets, "datasetAlias", "datasetId"), # nolint
-      ""
-    ),
-    dataset = manifest[["dataset"]]
-  )
-}
 
 #' Get Synapse tables used for the portal.
 get_tables <- function(syn) {
@@ -202,6 +118,7 @@ get_tables <- function(syn) {
   )
 }
 
+
 #' Get selected coloumns from a Synapse table.
 get_portal_table <- function(syn, table_id, cols) {
   query <- sprintf("SELECT %s FROM %s", paste0(cols, collapse=","), table_id)
@@ -209,71 +126,46 @@ get_portal_table <- function(syn, table_id, cols) {
 }
 
 
-dataset_row <- function(syn_id, manifest, publications) {
-  tibble(
-    datasetId = syn_id,
-    datasetName = manifest[["datasetName"]],
-    datasetAlias = manifest[["datasetId"]],
-    description = manifest[["description"]],
-    overallDesign = manifest[["overallDesign"]],
-    assay = create_listed_annots(manifest[["assay"]]),
-    species = create_listed_annots(manifest[["species"]]),
-    tumorType = create_listed_annots(manifest[["tumorType"]]),
-    themeId = split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "themeId"), #nolint
-    theme = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "theme")), #nolint
-    consortiumId = split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "consortiumId"), #nolint
-    consortium = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "consortium")), #nolint
-    grantId = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "grantId")), #nolint
-    grantName = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "grantName")), #nolint
-    grantNumber = ifelse(
-        manifest[["grantNumber"]] == "",
-        create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "grantNumber")), #nolint
-        create_listed_annots(manifest[["grantNumber"]])
-    ),
-    #publicationId = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "publicationId")), #nolint
-    publicationId = NA,
-    publicationTitle = create_listed_annots(manifest[["publicationTitle"]]),
-    publication = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "pubMedLink", remove_chars = FALSE)), #nolint
-    externalLink = ifelse(
-      manifest[["externalLink"]] == "",
-      create_url_markdown(
-        paste0(
-          if (startsWith(manifest[["datasetId"]], "GSE")) {
-            "GEO:"
-          } else if (startsWith(manifest[["datasetId"]], "SRP")) {
-            "SRA:"
-          } else {
-            ""
-          },
-          manifest[["datasetId"]]
-        ),
-        manifest[["datasetUrl"]]
-      ),
-      manifest[["externalLink"]]
-    )    
-  )
-}
-tool_row <- function(syn_id, manifest, publications) {
-  tibble(
-    toolId = syn_id,
-    toolName = manifest[["tool"]],
-    description = manifest[["description"]],
-    homepageUrl = manifest[["externalLink"]],
-    toolType = manifest[["toolType"]],
-    softwareLanguage = create_listed_annots(manifest[["softwareLanguage"]]),
-    inputDataType = create_listed_annots(manifest[["inputDataType"]]),
-    outputDataType = create_listed_annots(manifest[["outputDataType"]]),
-    themeId = split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "themeId"), #nolint
-    theme = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "theme")), #nolint
-    consortiumId = split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "consortiumId"), #nolint
-    consortium = split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "consortium"), #nolint
-    grantId = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "grantId")), #nolint
-    grantName = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "grantName")), #nolint
-    grantNumber = create_listed_annots(manifest[["grantNumber"]]),
-    #publicationId = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "publicationId")), #nolint
-    publicationId = NA,
-    publicationTitle = create_listed_annots(manifest[["publicationTitle"]]),
-    publication = create_listed_annots(split_and_search(manifest[["publicationTitle"]], publications, "publicationTitle", "pubMedLink", remove_chars = FALSE)), #nolint
-  )
+#' Convert comma-separated string values into a JSON array string
+#'
+#' @param str A string with values separated by commas
+#'
+#' @return The string containing a JSON array of the values
+#' @export
+#'
+#' @examples
+#' .delim_str_to_json("foo, bar, baz")
+.delim_str_to_json <- function(str, delimiter = ",") {
+  json_str <- str_split(str, delimiter)[[1]] %>%
+    str_trim() %>%
+    jsonlite::toJSON()
+  if (json_str == "[null]" || json_str == '[""]') {
+    ""
+  } else {
+    json_str
+  }
 }
 
+
+# modal with next step (based on dccvalidator's next_step_modal)
+next_step_modal <- function(results, type) {
+  is_failure <- purrr::map_lgl(results, function(x) {
+    inherits(x, "check_fail")
+  })
+  instructions = tagList(
+    p("You may now upload the manifest by clicking the button below."),
+    actionButton("upload_btn", class="btn-lg btn-block",
+                 icon = icon("cloud-upload-alt"), "Upload to Synapse")
+  )
+  if (length(results) & !any(is_failure)) {
+    Sys.sleep(1)
+    showModal(
+      modalDialog(
+        id = "next_step",
+        title = "Validation Checks Passed!",
+        instructions,
+        easyClose = TRUE
+      )
+    )
+  }
+}

@@ -26,8 +26,8 @@ sidebar <- dashboardSidebar(
 
 
 #' The application User-Interface
-#' 
-#' @param request Internal parameter for `{shiny}`. 
+#'
+#' @param request Internal parameter for `{shiny}`.
 #'     DO NOT REMOVE.
 #' @import shiny
 #' @import shinydashboard
@@ -54,6 +54,7 @@ app_ui <- function(request) {
       ),
       sidebar,
       dashboardBody(
+        useShinyjs(),
         shinydashboard::tabItems(
           shinydashboard::tabItem("home", mod_home_ui("home_ui_1")),
           shinydashboard::tabItem("validator", mod_validator_ui("validator_ui_1")),
@@ -68,19 +69,19 @@ app_ui <- function(request) {
 }
 
 #' Add external Resources to the Application
-#' 
-#' This function is internally used to add external 
-#' resources inside the Shiny application. 
-#' 
+#'
+#' This function is internally used to add external
+#' resources inside the Shiny application.
+#'
 #' @import shiny
 #' @importFrom golem add_resource_path activate_js favicon bundle_resources
 #' @noRd
 golem_add_external_resources <- function(){
-  
+
   add_resource_path(
     'www', app_sys('app/www')
   )
- 
+
   tags$head(
     golem::activate_js(),
     # favicon(),
