@@ -65,6 +65,7 @@ save_file_to_synapse <- function(syn, synapseclient, name,
   new_file$id
 }
 
+
 save_folder_to_synapse <- function(syn, synapseclient, name,
                                    parent, annotations) {
   name <- syn_prettify(name)
@@ -76,7 +77,6 @@ save_folder_to_synapse <- function(syn, synapseclient, name,
   new_folder <- syn$store(new_folder)
   new_folder$id
 }
-
 
 
 #' Get Synapse tables used for the portal.
@@ -118,6 +118,7 @@ get_tables <- function(syn) {
   )
 }
 
+
 #' Get selected coloumns from a Synapse table.
 get_portal_table <- function(syn, table_id, cols) {
   query <- sprintf("SELECT %s FROM %s", paste0(cols, collapse=","), table_id)
@@ -145,3 +146,26 @@ get_portal_table <- function(syn, table_id, cols) {
   }
 }
 
+
+# modal with next step (based on dccvalidator's next_step_modal)
+next_step_modal <- function(results, type) {
+  is_failure <- purrr::map_lgl(results, function(x) {
+    inherits(x, "check_fail")
+  })
+  instructions = tagList(
+    p("You may now upload the manifest by clicking the button below."),
+    actionButton("upload_btn", class="btn-lg btn-block",
+                 icon = icon("cloud-upload-alt"), "Upload to Synapse")
+  )
+  if (length(results) & !any(is_failure)) {
+    Sys.sleep(1)
+    showModal(
+      modalDialog(
+        id = "next_step",
+        title = "Validation Checks Passed!",
+        instructions,
+        easyClose = TRUE
+      )
+    )
+  }
+}
