@@ -4,9 +4,9 @@
 #'
 #' @param id,input,output,session Internal parameters for {shiny}.
 #'
-#' @noRd 
+#' @noRd
 #'
-#' @importFrom shiny NS tagList 
+#' @importFrom shiny NS tagList
 mod_validator_ui <- function(id){
   ns <- NS(id)
   tagList(
@@ -21,7 +21,7 @@ mod_validator_ui <- function(id){
                right. Click on ", strong("Validate."), "If all checks pass,
                feel free to upload; otherwise, edit accordingly then re-upload
                the manifest to validate again."),
-          p(strong("Note:"), "the file must be .xlsx. If needed, templates 
+          p(strong("Note:"), "the file must be .xlsx. If needed, templates
                are available below:"),
           tags$ul(
             tags$li(a(href = "www/templates/publications_manifest.xlsx",
@@ -38,14 +38,14 @@ mod_validator_ui <- function(id){
           span(style = "font-size:smaller",
                em("Templates last updated Mar 2021."))
         ),
-        
+
         span(style = "font-size:smaller",
              strong("Important!"), br(),
              "When uploading multiple manifests, upload the publications one first."
         ), br(), br(),
-        
-        selectizeInput(
-          "type",
+
+        selectInput(
+          ns("manifest_type"),
           label = "Manifest type:",
           choices = c(
             "--choose one--" = "",
@@ -53,27 +53,28 @@ mod_validator_ui <- function(id){
             "Datasets" = "dataset",
             "Files" = "file",
             "Tools" = "tool"
-          )
+          ),
+          selected = ""
         ),
-        
+
         fileInput(
-          "manifest_file",
+          ns("manifest_file"),
           label = "Upload manifest (.xlsx)",
           accept = c(
             ".xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" #nolint
           )
         ),
-        
+
         fileInput(
-          "new_cv_terms",
+          ns("new_cv_terms"),
           label = "Additional Standard Terms (.xlsx)",
           accept= c(
             ".xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" #nolint
           )
         ),
-        
+
         div(
           align = "center",
           hidden(
@@ -90,17 +91,17 @@ mod_validator_ui <- function(id){
           ),
           disabled(
             actionButton(
-              "validate_btn",
+              ns("validate_btn"),
               label = "Validate",
               class = "btn-primary", style = "color: white"
             )
           )
         )
       ),
-      
+
       mainPanel(
         tabBox(
-          id = "validator_tabs",
+          id = ns("validator_tabs"),
           width = "100%",
           tabPanel(
             "File Preview",
@@ -128,12 +129,16 @@ mod_validator_ui <- function(id){
     )
   )
 }
-    
+
 #' validator Server Function
 #'
-#' @noRd 
+#' @noRd
 mod_validator_server <- function(input, output, session, values){
   ns <- session$ns
+
+  state <- reactiveValues()
+  state$type_selected <- FALSE
+  state$validate_ready <- FALSE
 
   output$terms <- DT::renderDT(
     isolate(values$cv_terms),
@@ -141,10 +146,8 @@ mod_validator_server <- function(input, output, session, values){
   )
 
   ## BUTTON ACTIVATION ########
-  valid_upload <- TRUE
   observe({
-    cond <- input$type != "" & !is.null(input$manifest_file) & valid_upload
-    toggleState("validate_btn", condition = cond)
+    toggleState("validate_btn", condition = state$validate_ready)
   })
 
   ## MANIFEST VALIDATOR #######
@@ -157,31 +160,52 @@ mod_validator_server <- function(input, output, session, values){
     color = "#424874"
   )
 
-  manifest <- tibble()
-  observeEvent(input$manifest_file, {
-    valid_upload <<- TRUE
-    hide("missing_warning")
-    hide("empty_warning")
-    manifest <<- readxl::read_excel(input$manifest_file$datapath) %>%
-      mutate_all(~ tidyr::replace_na(.x, "")) %>%
-      plyr::rename(
-        replace = c(
-          fileURL = "fileUrl", datasetURL = "datasetUrl",
-          toolName = "tool", homepageUrl = "externalLink",
-          dpgapAccns = "dbgapAccns", dpgapUrls = "dbgapUrls"
-        ),
-        warn_missing = FALSE
-      )
-
-    ### Rancho provides some cols we don't need, so remove them
-    manifest <<- manifest[, !(names(manifest) %in% c("Rancho comments", "tumorType_"))]
-
-    ### Show warning if uploaded manifest is empty
-    if (nrow(manifest) == 0) {
-      valid_upload <<- FALSE
-      show("empty_warning")
+  manifest <- reactive({
+    if (is.null(input$manifest_file$datapath)) {
+      return(NULL)
+    }
+    result <- try(readxl::read_excel(input$manifest_file$datapath))
+    if(is.data.frame(result)) {
+      result <- result %>%
+        dplyr::mutate_all(~ tidyr::replace_na(.x, "")) %>%
+        plyr::rename(
+          replace = c(
+            fileURL = "fileUrl", datasetURL = "datasetUrl",
+            toolName = "tool", homepageUrl = "externalLink",
+            dpgapAccns = "dbgapAccns", dpgapUrls = "dbgapUrls"
+          ),
+          warn_missing = FALSE
+        )
+      return(result)
     } else {
-      output$preview <- DT::renderDT(manifest)
+      return(NULL)
+    }
+  })
+
+  observeEvent(input$manifest_type, {
+    if (is.null(input$manifest_type)) {
+      state$type_selected <- FALSE
+    } else if (input$manifest_type != "") {
+      state$type_selected <- TRUE
+    }
+  })
+
+  observeEvent(input$manifest_file, {
+    if (!is.null(input$manifest_file$datapath)) {
+      # input$manifest_file
+      state$manifest_uploaded <- TRUE
+      hide("missing_warning")
+      hide("empty_warning")
+
+      ### Show warning if uploaded manifest is empty
+      if (nrow(manifest()) == 0) {
+        show("empty_warning")
+      } else {
+        if (state$type_selected) {
+          state$validate_ready <- TRUE
+        }
+        output$preview <- DT::renderDT(manifest())
+      }
     }
 
     updateTabsetPanel(session, "validator_tabs", selected = "preview_tab")
@@ -191,23 +215,26 @@ mod_validator_server <- function(input, output, session, values){
     tryCatch({
       new_terms <- readxl::read_excel(input$new_cv_terms$datapath)
       if (nrow(new_terms) > 0) {
-        new_terms <- new_terms[, names(new_terms) %in% c("Category", "standard_name", "key", "value")] %>% #nolint
+        new_terms <- new_terms %>%
+          dplyr::select(
+            one_of(c("Category", "standard_name", "key", "value"))
+          ) %>% #nolint
           plyr::rename(
             replace = c(Category = "key", standard_name = "value"),
             warn_missing = FALSE
           ) %>%
-          mutate(
+          dplyr::mutate(
             key = stringr::str_replace_all(
               key,
-              c("outDataType" = "outputDataType", "Assay" = "assay", "Tumor Type" = "tumorType")) #nolint
+              c(
+                "outDataType" = "outputDataType",
+                "Assay" = "assay",
+                "Tumor Type" = "tumorType"
+                )
+            ) #nolint
           ) %>%
-          add_column(columnType = "STRING")
-        # cv_terms <<- unique(bind_rows(cv_terms, new_terms))
-        # TODO: Check if the reactiveValue can be reset
+          tibble::add_column(columnType = "STRING")
         values$cv_terms <- unique(bind_rows(cv_terms, new_terms))
-      #   output$terms <- DT::renderDT(
-      #     cv_terms,
-      #     options = list(pageLength = 50))
       }
     }, error = function(err) {
       showModal(
@@ -226,17 +253,17 @@ mod_validator_server <- function(input, output, session, values){
 
   observeEvent(input$validate_btn, {
     v_waiter$show()
-    type <- input$type
+    type <- input$manifest_type
 
     results <- list(
       missing_cols = check_col_names(
-        manifest,
+        manifest(),
         template[[type]],
         success_msg = "All required columns are present",
         fail_msg = "Missing columns in the manifest"
       ),
       invalid_cols = check_annotation_keys(
-        manifest,
+        manifest(),
         isolate(values$cv_terms),
         whitelist_keys = c(setdiff(template[[type]], std_cols), "Notes", "notes"),
         success_msg = "All column names are valid",
@@ -244,18 +271,18 @@ mod_validator_server <- function(input, output, session, values){
         annots_link = "https://www.synapse.org/#!Synapse:syn25322361/tables/"
       ),
       incomplete_cols = check_cols_complete(
-        manifest,
+        manifest(),
         required_cols = complete_cols[[type]],
         success_msg = "All necessary columns have annotations",
         fail_msg = "Some necessary columns are missing annotations"
       ),
       invalid_vals = check_listed_values(
-        manifest,
+        manifest(),
         isolate(values$cv_terms)
       )
     )
     if (type != "file") {
-      results$dup_ids = check_id_dups(manifest, id[[type]])
+      results$dup_ids = check_id_dups(manifest(), id[[type]])
     }
     updateTabsetPanel(session, "validator_tabs", selected = "results_tab")
     callModule(results_boxes_server, "validation_results", results)
@@ -272,11 +299,12 @@ mod_validator_server <- function(input, output, session, values){
     ),
     color = "white"
   )
+
   observeEvent(input$upload_btn, {
     u_waiter$show()
     type <- input$type
 
-    apply(manifest, 1, function(row) {
+    apply(manifest(), 1, function(row) {
 
       name <- row[[ id[[type]] ]]
 
@@ -360,9 +388,3 @@ mod_validator_server <- function(input, output, session, values){
   })
 }
 
-## To be copied in the UI
-# mod_validator_ui("validator_ui_1")
-    
-## To be copied in the server
-# callModule(mod_validator_server, "validator_ui_1")
- 
