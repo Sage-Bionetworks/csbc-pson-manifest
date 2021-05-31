@@ -34,6 +34,7 @@ publication_row <- function(syn_id, manifest, grants, datasets) {
   )
 }
 
+
 dataset_row <- function(syn_id, manifest, publications) {
   tibble(
     datasetId = syn_id,
@@ -78,6 +79,7 @@ dataset_row <- function(syn_id, manifest, publications) {
     )
   )
 }
+
 
 tool_row <- function(syn_id, manifest, publications) {
   tibble(
