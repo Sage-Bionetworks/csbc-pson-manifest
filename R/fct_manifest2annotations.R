@@ -14,12 +14,14 @@ publication_annots <- function(manifest) {
   )
 }
 
+
 dataset_annots <- function(manifest) {
   list(
     fullName = manifest[["datasetName"]],
     displayName = manifest[["datasetId"]]
   )
 }
+
 
 tool_annots <- function(manifest, grants) {
   # some tools may be annotated with multiple grants.
@@ -32,6 +34,7 @@ tool_annots <- function(manifest, grants) {
     toolType = manifest[["toolType"]]
   )
 }
+
 
 file_annots <- function(manifest, parent, grants, datasets) {
   list(

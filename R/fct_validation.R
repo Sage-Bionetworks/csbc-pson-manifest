@@ -6,10 +6,10 @@ check_id_dups <- function(data, id_col) {
   if (!id_col %in% colnames(data)) {
     failure <- check_fail(
       msg = sprintf("Can't check for duplicate IDs, %s missing from data",
-        id_col),
+                    id_col),
       behavior = sprintf("Manifest should contain the %s column", id_col),
       data = colnames(data)
-    )   
+    )
     return(failure)
   }
   behavior <- sprintf("%s IDs within the manifest should be unique", id_col)
